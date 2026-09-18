@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Vehicle Check</title>
+<style>
+  :root{--green:#16a34a;--red:#dc2626;--bg:#0f172a;--card:#1e293b;--text:#f1f5f9;--muted:#94a3b8;--accent:#3b82f6;}
+  *{box-sizing:border-box;}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--text);padding:16px;}
+  .card{width:100%;max-width:420px;background:var(--card);border-radius:20px;padding:28px 22px;box-shadow:0 10px 30px rgba(0,0,0,0.4);}
+  h1{font-size:20px;margin:0 0 4px;text-align:center;}
+  p.sub{margin:0 0 24px;text-align:center;color:var(--muted);font-size:14px;}
+  input#plateInput{width:100%;font-size:28px;text-align:center;letter-spacing:2px;padding:16px 10px;border-radius:14px;border:2px solid #334155;background:#0b1220;color:var(--text);outline:none;transition:border-color .15s;}
+  input#plateInput:focus{border-color:var(--accent);}
+  .btn-row{display:flex;gap:10px;margin-top:16px;}
+  button{flex:1;font-size:17px;font-weight:600;padding:15px 0;border-radius:14px;border:none;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .08s,opacity .15s;}
+  button:active{transform:scale(.97);}
+  button:disabled{opacity:.6;cursor:not-allowed;}
+  #checkBtn{background:var(--accent);color:#fff;}
+  #clearBtn{background:#334155;color:var(--text);}
+  #result{margin-top:22px;min-height:110px;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:22px;font-weight:800;text-align:center;padding:18px;display:none;}
+  #result .plate-echo{font-size:15px;font-weight:500;opacity:.85;margin-top:6px;letter-spacing:1px;}
+  #result.approved{background:rgba(22,163,74,.15);border:2px solid var(--green);color:var(--green);display:flex;}
+  #result.denied{background:rgba(220,38,38,.15);border:2px solid var(--red);color:var(--red);display:flex;}
+  #result.loading{background:rgba(148,163,184,.1);border:2px solid #334155;color:var(--muted);font-size:16px;display:flex;}
+  .spinner{width:26px;height:26px;border:3px solid #334155;border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:10px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #errorMsg{margin-top:14px;text-align:center;color:var(--red);font-size:13px;display:none;}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Vehicle Check</h1>
+    <p class="sub">Enter license plate number</p>
+    <input id="plateInput" type="tel" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="12" placeholder="0000000">
+    <div class="btn-row">
+      <button id="checkBtn">Check</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+    <div id="result"></div>
+    <div id="errorMsg"></div>
+  </div>
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbzvVdu0N0yEft-g1VJZJcazrjc0gquA8APYQ3gCQ_2fS2097qc8yYu9tQoNrA98HwgQ7w/exec";
+  const input = document.getElementById('plateInput');
+  const checkBtn = document.getElementById('checkBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const result = document.getElementById('result');
+  const errorMsg = document.getElementById('errorMsg');
+  function normalizePlate(raw){return raw.replace(/\D/g,'');}
+  function showLoading(){errorMsg.style.display='none';result.className='loading';result.innerHTML='<div class="spinner"></div>Checking...';}
+  function showApproved(plate){result.className='approved';result.innerHTML='✅ APPROVED<div class="plate-echo">'+plate+'</div>';if(navigator.vibrate)navigator.vibrate(60);}
+  function showDenied(plate){result.className='denied';result.innerHTML='⛔ NOT APPROVED<div class="plate-echo">'+plate+'</div>';if(navigator.vibrate)navigator.vibrate([80,40,80]);}
+  function showError(msg){result.style.display='none';errorMsg.textContent=msg;errorMsg.style.display='block';}
+  async function checkPlate(){
+    const plate=normalizePlate(input.value);
+    if(!plate){showError('Enter a plate number first.');return;}
+    checkBtn.disabled=true;showLoading();
+    try{
+      const url=API_URL+'?plate='+encodeURIComponent(plate);
+      const res=await fetch(url,{method:'GET'});
+      if(!res.ok)throw new Error('bad response');
+      const data=await res.json();
+      if(data.approved===true)showApproved(plate);else showDenied(plate);
+    }catch(err){showError('Could not reach the server. Check your connection and try again.');}
+    finally{checkBtn.disabled=false;}
+  }
+  function clearAll(){input.value='';result.style.display='none';errorMsg.style.display='none';input.focus();}
+  checkBtn.addEventListener('click',checkPlate);
+  clearBtn.addEventListener('click',clearAll);
+  input.addEventListener('keydown',e=>{if(e.key==='Enter')checkPlate();});
+  input.addEventListener('input',()=>{input.value=normalizePlate(input.value);});
+  window.addEventListener('load',()=>input.focus());
+</script>
+</body>
+</html>
