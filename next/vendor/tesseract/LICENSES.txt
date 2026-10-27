@@ -1,0 +1,4 @@
+Third-party files bundled for offline plate scanning (all Apache License 2.0):
+- tesseract.js 5.1.1            https://github.com/naptha/tesseract.js
+- tesseract.js-core 5.1.1       https://github.com/naptha/tesseract.js-core
+- eng.traineddata (best_int)    https://github.com/tesseract-ocr/tessdata_best

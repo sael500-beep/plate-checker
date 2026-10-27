@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl" data-theme="auto">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0d1114">
+<title>בדיקת רכב</title>
+<style>
+  /* ---------- Tokens ---------- */
+  :root{
+    --bg:#e4e7ea; --panel:#f6f7f8; --ink:#14181c; --muted:#5b666f; --line:#c3cad0;
+    --hazard:#ffc400; --hazard-ink:#14181c;
+    --ok:#12a150; --ok-ink:#ffffff;
+    --no:#d92d20; --no-ink:#ffffff;
+    --plate:#ffd21f; --plate-ink:#111; --band:#1d4ed8;
+    --shadow:0 10px 30px rgba(20,24,28,.14);
+  }
+  @media (prefers-color-scheme: dark){
+    :root[data-theme="auto"]{
+      --bg:#0d1114; --panel:#151b20; --ink:#eef2f5; --muted:#8c99a3; --line:#27313a;
+      --ok:#1fcf68; --ok-ink:#04210f;
+      --no:#ff4d42; --no-ink:#2a0603;
+      --plate:#e8c21c; --band:#2f5fe0;
+      --shadow:0 10px 30px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1114; --panel:#151b20; --ink:#eef2f5; --muted:#8c99a3; --line:#27313a;
+    --ok:#1fcf68; --ok-ink:#04210f;
+    --no:#ff4d42; --no-ink:#2a0603;
+    --plate:#e8c21c; --band:#2f5fe0;
+    --shadow:0 10px 30px rgba(0,0,0,.55);
+  }
+  /* Night-vision mode: red light only, preserves dark adaptation */
+  :root[data-theme="red"]{
+    --bg:#120202; --panel:#1c0505; --ink:#ff7a6b; --muted:#a8453b; --line:#3d0e0b;
+    --hazard:#c4281b; --hazard-ink:#120202;
+    --ok:#ff4a38; --ok-ink:#120202;
+    --no:#120202; --no-ink:#ff7a6b;
+    --plate:#8f1d13; --plate-ink:#120202; --band:#4a0f0a;
+    --shadow:none;
+  }
+
+  /* ---------- Base ---------- */
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    display:flex; flex-direction:column; min-height:100dvh;
+    transition:background .25s,color .25s;
+  }
+  button{font:inherit;color:inherit}
+  :focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
+
+  /* Hazard tape (the one moving element on the main screen) */
+  .tape{
+    height:12px; flex:none;
+    background:linear-gradient(45deg,var(--hazard) 25%,#111 25%,#111 50%,var(--hazard) 50%,var(--hazard) 75%,#111 75%,#111);
+    background-size:28px 28px;
+    animation:tape 1.6s linear infinite;
+  }
+  @keyframes tape{to{background-position:28px 0}}
+
+  /* Demo mode banner: only visible when demo mode is on */
+  .demo{display:none;background:#111;color:var(--hazard);text-align:center;font-weight:800;font-size:14px;padding:7px 10px}
+  html.demo-on .demo{display:block}
+  .demo-chip{display:none;position:absolute;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,.4);color:#fff;font-size:13px;font-weight:800;padding:5px 14px;border-radius:999px;white-space:nowrap}
+  html.demo-on .demo-chip{display:block}
+
+  /* Top bar */
+  .bar{
+    display:flex; gap:8px; justify-content:space-between; align-items:center;
+    padding:12px 14px 0;
+  }
+  .bar .chips{display:flex;gap:8px}
+  .chip{
+    min-height:44px; padding:0 11px; border-radius:12px; white-space:nowrap;
+    border:1.5px solid var(--line); background:var(--panel);
+    font-size:13px; font-weight:600; cursor:pointer;
+  }
+  .chip:active{transform:scale(.97)}
+  .brand{font-weight:800;font-size:15px;color:var(--muted);white-space:nowrap}
+
+  /* Main */
+  main{flex:1;display:flex;align-items:center;justify-content:center;padding:18px 16px 28px}
+  .card{
+    width:100%; max-width:440px; background:var(--panel);
+    border:1.5px solid var(--line); border-radius:22px;
+    padding:26px 20px 22px; box-shadow:var(--shadow);
+  }
+  h1{margin:0 0 4px;font-size:26px;font-weight:900;text-align:center}
+  .sub{margin:0 0 22px;text-align:center;color:var(--muted);font-size:15px}
+
+  /* Plate-shaped input */
+  .plate{
+    direction:ltr; display:flex; align-items:stretch; overflow:hidden;
+    border-radius:14px; border:3px solid var(--plate-ink);
+    background:var(--plate); height:92px;
+  }
+  .plate .band{
+    flex:none; width:44px; background:var(--band); color:#fff;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-weight:800; font-size:13px; gap:4px;
+  }
+  :root[data-theme="red"] .plate .band{color:var(--ink)}
+  .plate .band i{display:block;width:16px;height:16px;border-radius:50%;border:2px solid currentColor;opacity:.85}
+  #plateInput{
+    flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--plate-ink);
+    text-align:center; font-size:clamp(30px,9.5vw,46px); font-weight:900; letter-spacing:.06em;
+    font-family:"Arial Narrow","Roboto Condensed","Helvetica Neue",Arial,sans-serif;
+    padding:0 8px;
+  }
+  #plateInput::placeholder{color:rgba(0,0,0,.22)}
+  .plate:focus-within{box-shadow:0 0 0 4px var(--hazard)}
+
+  /* Plate scan */
+  .scan{
+    display:flex; align-items:center; justify-content:center; gap:10px; width:100%;
+    margin-top:14px; min-height:56px; border-radius:16px; cursor:pointer;
+    border:2px dashed var(--line); background:transparent; font-size:18px; font-weight:800;
+  }
+  .scan svg{width:26px;height:26px;flex:none}
+  .scan:disabled{opacity:.6}
+  .note{margin:12px 0 0;text-align:center;font-size:15px;font-weight:700;min-height:22px;color:var(--ink)}
+  .note.hint{color:var(--muted);font-weight:500;font-size:14px}
+  .note.warn{color:var(--no)}
+  :root[data-theme="red"] .note.warn{color:var(--ink)}
+  .file-hidden{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .plate.flash{animation:flash .9s ease-out}
+  @keyframes flash{0%{box-shadow:0 0 0 0 var(--hazard)}30%{box-shadow:0 0 0 8px var(--hazard)}100%{box-shadow:0 0 0 0 transparent}}
+
+  .row{display:flex;gap:10px;margin-top:16px}
+  .btn{
+    flex:1; min-height:60px; border-radius:16px; border:0; cursor:pointer;
+    font-size:20px; font-weight:800; transition:transform .08s,opacity .15s;
+  }
+  .btn:active{transform:scale(.97)}
+  .btn:disabled{opacity:.55}
+  .btn.go{flex:2;background:var(--hazard);color:var(--hazard-ink)}
+  .btn.clear{background:transparent;border:2px solid var(--line);color:var(--ink)}
+
+  .msg{margin:14px 0 0;text-align:center;font-size:15px;font-weight:600;color:var(--no);min-height:22px}
+  :root[data-theme="red"] .msg{color:var(--ink)}
+
+  .spin{display:none;width:22px;height:22px;border-radius:50%;border:3px solid currentColor;border-top-color:transparent;animation:spin .7s linear infinite;margin:0 auto}
+  .loading .spin{display:block}
+  .loading .lbl{display:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ---------- Full-screen result ---------- */
+  #overlay{
+    position:fixed; inset:0; z-index:10; display:none; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center; padding:24px;
+    padding-top:calc(24px + env(safe-area-inset-top)); padding-bottom:calc(24px + env(safe-area-inset-bottom));
+    cursor:pointer; background:var(--res-bg); color:var(--res-ink);
+  }
+  #overlay.show{display:flex;animation:fade .14s ease-out}
+  #overlay.ok{--res-bg:var(--ok);--res-ink:var(--ok-ink)}
+  #overlay.no{--res-bg:var(--no);--res-ink:var(--no-ink)}
+  :root[data-theme="red"] #overlay.no{
+    background-image:repeating-linear-gradient(45deg,transparent 0 26px,rgba(255,122,107,.12) 26px 52px);
+    box-shadow:inset 0 0 0 10px var(--ink);
+  }
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+
+  /* Barrier gate: lifts on approval, stays down and shakes on denial */
+  .gate{--L:min(58vw,230px,26vh);direction:ltr;position:relative;width:var(--L);height:70px;margin-top:calc(var(--L)*.75);margin-bottom:22px}
+  .gate .post{position:absolute;left:0;top:14px;width:30px;height:44px;border-radius:8px;background:currentColor;opacity:.9}
+  .gate .arm{
+    position:absolute;left:18px;top:26px;height:20px;width:calc(100% - 18px);
+    transform-origin:0 50%; border-radius:10px;
+    background:linear-gradient(45deg,#fff 25%,#111 25%,#111 50%,#fff 50%,#fff 75%,#111 75%,#111);
+    background-size:28px 28px; border:2px solid #111;
+  }
+  #overlay.ok.show .arm{animation:lift .7s cubic-bezier(.2,.9,.3,1.15) .08s both}
+  #overlay.no.show .arm{animation:shake .45s ease-in-out .08s both}
+  @keyframes lift{to{transform:rotate(-50deg)}}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(4px)}}
+
+  .icon{width:96px;height:96px;margin-bottom:6px}
+  #overlay.show .icon{animation:pop .35s cubic-bezier(.2,1.4,.4,1) .12s both}
+  @keyframes pop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+  .word{font-size:clamp(46px,16vw,76px);font-weight:900;line-height:1.05;margin:4px 0 0}
+  .word-en{font-size:20px;font-weight:700;opacity:.85;margin-top:6px;direction:ltr}
+  .echo{
+    direction:ltr; margin-top:22px; padding:8px 18px; border-radius:10px;
+    background:var(--plate); color:var(--plate-ink); border:3px solid var(--plate-ink);
+    font-size:30px; font-weight:900; letter-spacing:3px;
+    font-family:"Arial Narrow","Roboto Condensed","Helvetica Neue",Arial,sans-serif;
+  }
+  .next{
+    margin-top:30px; min-height:60px; width:min(100%,360px); border-radius:16px;
+    border:3px solid currentColor; background:transparent; font-size:20px; font-weight:800; cursor:pointer;
+  }
+
+  /* ---------- Lite mode: every extra off ---------- */
+  html.lite *,html.lite *::before,html.lite *::after{
+    animation:none!important; transition:none!important; box-shadow:none!important;
+  }
+  html.lite .tape{background:var(--hazard);height:8px}
+  html.lite .gate{display:none}
+  @media (max-height:640px){.icon{display:none}}
+  @media (max-height:480px){.gate{display:none}}
+  html.lite .icon{width:72px;height:72px}
+  @media (prefers-reduced-motion: reduce){
+    .tape,.gate .arm,.icon,#overlay.show{animation:none!important}
+  }
+</style>
+</head>
+<body>
+  <div class="tape" aria-hidden="true"></div>
+  <div class="demo">מצב הדגמה: התוצאות אינן אמיתיות</div>
+
+  <div class="bar">
+    <span class="brand">בקרת שער</span>
+    <div class="chips">
+      <button class="chip" id="themeBtn" type="button" aria-label="החלפת מצב תצוגה">תצוגה: אוטומטי</button>
+      <button class="chip" id="liteBtn" type="button" aria-label="הפעלה וכיבוי של אפקטים">אפקטים: פעילים</button>
+    </div>
+  </div>
+
+  <main>
+    <div class="card">
+      <h1>בדיקת רכב</h1>
+      <p class="sub">הקלד מספר רכב ולחץ על בדיקה</p>
+
+      <div class="plate">
+        <div class="band"><i></i>IL</div>
+        <input id="plateInput" type="tel" inputmode="numeric" pattern="[0-9]*"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               maxlength="9" placeholder="0000000" aria-label="מספר רכב">
+      </div>
+
+      <button class="scan" id="scanBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        <span>סריקת לוחית</span>
+      </button>
+      <input class="file-hidden" id="scanInput" type="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
+      <p class="note hint" id="scanNote" role="status">צלם את הלוחית מקרוב וישר</p>
+
+      <div class="row">
+        <button class="btn go" id="checkBtn" type="button"><span class="lbl">בדיקה</span><span class="spin" aria-hidden="true"></span></button>
+        <button class="btn clear" id="clearBtn" type="button">ניקוי</button>
+      </div>
+
+      <p class="msg" id="msg" role="alert"></p>
+    </div>
+  </main>
+
+  <div id="overlay" role="alertdialog" aria-live="assertive" aria-label="תוצאת בדיקה">
+    <div class="demo-chip">הדגמה</div>
+    <div class="gate" aria-hidden="true"><div class="post"></div><div class="arm"></div></div>
+    <svg class="icon" id="icon" viewBox="0 0 96 96" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+    <div class="word" id="word"></div>
+    <div class="word-en" id="wordEn"></div>
+    <div class="echo" id="echo"></div>
+    <button class="next" id="nextBtn" type="button">בדיקה הבאה</button>
+  </div>
+
+<script>
+  // ======================================================
+  // CONFIG — Apps Script Web App URL
+  // ======================================================
+  const API_URL = "https://script.google.com/macros/s/AKfycbzvVdu0N0yEft-g1VJZJcazrjc0gquA8APYQ3gCQ_2fS2097qc8yYu9tQoNrA98HwgQ7w/exec";
+
+  // ======================================================
+  // DEMO MODE — only with ?demo=1 in the address (never saved).
+  // Never calls the server; only the plates below show as approved.
+  // ======================================================
+  const DEMO = new URLSearchParams(location.search).get('demo') === '1' || window.__FORCE_DEMO__ === true;
+  const DEMO_PLATES = ['21673601'];
+
+  const $ = (id) => document.getElementById(id);
+  const input = $('plateInput'), checkBtn = $('checkBtn'), clearBtn = $('clearBtn'),
+        msg = $('msg'), overlay = $('overlay'), themeBtn = $('themeBtn'), liteBtn = $('liteBtn');
+  const root = document.documentElement;
+
+  /* ---------- Safe storage ---------- */
+  const store = {
+    get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+    set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+  };
+
+  /* ---------- Themes ---------- */
+  const THEMES = [
+    {id:'auto',  label:'אוטומטי',    color:'#0d1114'},
+    {id:'light', label:'בהיר',       color:'#e4e7ea'},
+    {id:'dark',  label:'כהה',        color:'#0d1114'},
+    {id:'red',   label:'אדום',       color:'#120202'}
+  ];
+  let themeIdx = Math.max(0, THEMES.findIndex(t => t.id === store.get('pc_theme')));
+  function applyTheme(){
+    const t = THEMES[themeIdx];
+    root.setAttribute('data-theme', t.id);
+    themeBtn.textContent = 'תצוגה: ' + t.label;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', t.color);
+  }
+  themeBtn.addEventListener('click', () => {
+    themeIdx = (themeIdx + 1) % THEMES.length;
+    store.set('pc_theme', THEMES[themeIdx].id);
+    applyTheme();
+  });
+
+  /* ---------- Lite mode (all extras off) ---------- */
+  const saved = store.get('pc_lite');
+  const weakDevice = (navigator.deviceMemory && navigator.deviceMemory <= 2) ||
+                     (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2) ||
+                     (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  let lite = saved === null ? !!weakDevice : saved === '1';
+  function applyLite(){
+    root.classList.toggle('lite', lite);
+    liteBtn.textContent = 'אפקטים: ' + (lite ? 'כבויים' : 'פעילים');
+  }
+  liteBtn.addEventListener('click', () => {
+    lite = !lite;
+    store.set('pc_lite', lite ? '1' : '0');
+    applyLite();
+  });
+
+  applyTheme();
+  applyLite();
+  if (DEMO) root.classList.add('demo-on');
+
+  /* ---------- Helpers ---------- */
+  const normalizePlate = (raw) => String(raw).replace(/\D/g, '');
+  function formatPlate(p){
+    if (p.length === 7) return p.slice(0,2) + '-' + p.slice(2,5) + '-' + p.slice(5);
+    if (p.length === 8) return p.slice(0,3) + '-' + p.slice(3,5) + '-' + p.slice(5);
+    return p;
+  }
+  const ICON_OK = '<path d="M20 50 L40 70 L76 28"/>';
+  const ICON_NO = '<path d="M26 26 L70 70 M70 26 L26 70"/>';
+
+  function vibrate(p){ if (!lite && navigator.vibrate) navigator.vibrate(p); }
+  function setLoading(on){ checkBtn.disabled = on; checkBtn.classList.toggle('loading', on); }
+  function showMsg(t){ msg.textContent = t || ''; }
+
+  function showResult(approved, plate){
+    $('icon').innerHTML = approved ? ICON_OK : ICON_NO;
+    $('word').textContent = approved ? 'מאושר' : 'לא מאושר';
+    $('wordEn').textContent = approved ? 'APPROVED' : 'NOT APPROVED';
+    $('echo').textContent = formatPlate(plate);
+    overlay.className = '';
+    void overlay.offsetWidth;               // restart CSS animations on repeat checks
+    overlay.className = 'show ' + (approved ? 'ok' : 'no');
+    vibrate(approved ? 70 : [90, 50, 90]);
+    $('nextBtn').focus({preventScroll:true});
+  }
+  function resetScan(){ scanned = false; edited = false; setScanNote('', false); }
+  function closeResult(){
+    overlay.className = '';
+    input.value = '';
+    resetScan();
+    showMsg('');
+    input.focus();
+  }
+
+  /* ---------- Plate scan (runs on the phone; library files are hosted with the site) ---------- */
+  const OCR_DIR = 'vendor/tesseract/';
+  const scanBtn = $('scanBtn'), scanInput = $('scanInput'), scanNote = $('scanNote');
+  const SCAN_HINT = scanNote.textContent;
+  let ocrWorkerPromise = null, progressCb = null;
+  let scanned = false, edited = false;
+
+  function setScanNote(text, warn){
+    if (!text){ scanNote.textContent = SCAN_HINT; scanNote.className = 'note hint'; return; }
+    scanNote.textContent = text;
+    scanNote.className = 'note' + (warn ? ' warn' : '');
+  }
+  function loadScript(src){
+    return new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = src; s.onload = res; s.onerror = () => rej(new Error('script'));
+      document.head.appendChild(s);
+    });
+  }
+  function ocrStatus(m){
+    if (!progressCb) return;
+    const st = m.status || '';
+    if (st === 'recognizing text') progressCb('קורא את הלוחית… ' + Math.round((m.progress || 0) * 100) + '%');
+    else if (st.indexOf('loading') === 0) progressCb('טוען מנוע זיהוי (בפעם הראשונה בלבד)…');
+  }
+  function getWorker(){
+    if (!ocrWorkerPromise){
+      ocrWorkerPromise = (async () => {
+        if (!window.Tesseract) await loadScript(OCR_DIR + 'tesseract.min.js');
+        const abs = (p) => new URL(OCR_DIR + p, location.href).href;
+        const w = await Tesseract.createWorker('eng', 1, {
+          workerPath: abs('worker.min.js'), corePath: abs('core'), langPath: abs('lang'),
+          logger: ocrStatus
+        });
+        await w.setParameters({
+          tessedit_char_whitelist: '0123456789-',
+          tessedit_pageseg_mode: '11',
+          user_defined_dpi: '300'
+        });
+        return w;
+      })().catch((e) => { ocrWorkerPromise = null; throw e; });
+    }
+    return ocrWorkerPromise;
+  }
+  async function releaseWorker(){
+    if (!ocrWorkerPromise) return;
+    const p = ocrWorkerPromise; ocrWorkerPromise = null;
+    try { (await p).terminate(); } catch (e) {}
+  }
+
+  async function fileToCanvas(file, maxDim){
+    const url = URL.createObjectURL(file);
+    try{
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+      const k = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * k));
+      c.height = Math.max(1, Math.round(img.naturalHeight * k));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      return c;
+    } finally { URL.revokeObjectURL(url); }
+  }
+  // Grayscale + contrast stretch (2%..98%); optional inversion for light-on-dark plates
+  function grayCanvas(src, invert){
+    const w = src.width, h = src.height, n = w * h;
+    const out = document.createElement('canvas'); out.width = w; out.height = h;
+    const ctx = out.getContext('2d'); ctx.drawImage(src, 0, 0);
+    const img = ctx.getImageData(0, 0, w, h), p = img.data;
+    const hist = new Uint32Array(256), g = new Uint8Array(n);
+    for (let i = 0, j = 0; j < n; i += 4, j++){ const v = (p[i] * 77 + p[i+1] * 150 + p[i+2] * 29) >> 8; g[j] = v; hist[v]++; }
+    const cut = n * 0.02; let lo = 0, hi = 255, acc = 0;
+    for (let v = 0; v < 256; v++){ acc += hist[v]; if (acc >= cut){ lo = v; break; } }
+    acc = 0;
+    for (let v = 255; v >= 0; v--){ acc += hist[v]; if (acc >= cut){ hi = v; break; } }
+    if (hi - lo < 20){ lo = 0; hi = 255; }
+    const k = 255 / (hi - lo);
+    for (let i = 0, j = 0; j < n; i += 4, j++){
+      let v = (g[j] - lo) * k; v = v < 0 ? 0 : v > 255 ? 255 : v;
+      if (invert) v = 255 - v;
+      p[i] = p[i+1] = p[i+2] = v; p[i+3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    return out;
+  }
+  // Israeli plates read as NN-NNN-NN (7 digits) or NNN-NN-NNN (8 digits). The blue "IL" band
+  // often adds a stray first character, so extra leading digits in the first group are dropped.
+  function cleanPlate(groups){
+    const g = groups.slice();
+    if (g.length === 3){
+      const a = g[0].length, b = g[1].length, c = g[2].length;
+      if (b === 3 && c === 2 && a > 2) g[0] = g[0].slice(-2);
+      else if (b === 2 && c === 3 && a > 3) g[0] = g[0].slice(-3);
+    }
+    const d = g.join('');
+    return d.length >= 5 && d.length <= 8 ? d : '';
+  }
+  const groupsOf = (text) => String(text).split(/\D+/).filter(Boolean);
+
+  // All plate-like rows in a recognition result, tallest text first.
+  // (Word confidence is unreliable with a digit whitelist, so it is not used.)
+  function platesFrom(data){
+    const words = (data.words || []).filter((w) => /\d/.test(w.text));
+    words.sort((a, b) => (a.bbox.y0 + a.bbox.y1) - (b.bbox.y0 + b.bbox.y1));
+    const rows = [];
+    for (const w of words){
+      const cy = (w.bbox.y0 + w.bbox.y1) / 2, hh = w.bbox.y1 - w.bbox.y0;
+      let row = rows.find((r) => Math.abs(r.cy - cy) < Math.max(r.h, hh) * 0.6);
+      if (!row){ row = { cy: cy, h: hh, words: [] }; rows.push(row); }
+      row.words.push(w);
+      row.cy = (row.cy * (row.words.length - 1) + cy) / row.words.length;
+      row.h = Math.max(row.h, hh);
+    }
+    const out = [];
+    for (const r of rows){
+      r.words.sort((a, b) => a.bbox.x0 - b.bbox.x0);
+      const groups = [].concat.apply([], r.words.map((w) => groupsOf(w.text)));
+      const digits = cleanPlate(groups);
+      if (!digits) continue;
+      out.push({
+        digits: digits, h: r.h, single: groups.length === 1,
+        bbox: {
+          x0: Math.min.apply(null, r.words.map((w) => w.bbox.x0)), y0: Math.min.apply(null, r.words.map((w) => w.bbox.y0)),
+          x1: Math.max.apply(null, r.words.map((w) => w.bbox.x1)), y1: Math.max.apply(null, r.words.map((w) => w.bbox.y1))
+        }
+      });
+    }
+    out.sort((a, b) => b.h - a.h);
+    return out;
+  }
+  // Tight second look: crop around the found number, enlarge, read as a single line
+  async function readTight(worker, gray, box){
+    const bh = Math.max(1, box.y1 - box.y0), padY = Math.round(bh * 0.3), padX = Math.round(bh * 0.1);
+    const x0 = Math.max(0, box.x0 - padX), y0 = Math.max(0, box.y0 - padY);
+    const x1 = Math.min(gray.width, box.x1 + padX), y1 = Math.min(gray.height, box.y1 + padY);
+    const k = Math.min(3, Math.max(1, 90 / bh));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round((x1 - x0) * k)); c.height = Math.max(1, Math.round((y1 - y0) * k));
+    c.getContext('2d').drawImage(gray, x0, y0, x1 - x0, y1 - y0, 0, 0, c.width, c.height);
+    await worker.setParameters({ tessedit_pageseg_mode: '7' });
+    try { const r = await worker.recognize(c); return cleanPlate(groupsOf(r.data.text || '')); }
+    finally { await worker.setParameters({ tessedit_pageseg_mode: '11' }); }
+  }
+  async function runScan(file){
+    const src = await fileToCanvas(file, 1280);
+    const worker = await getWorker();
+    for (const inv of [false, true]){
+      const gray = grayCanvas(src, inv);
+      const reads = [];
+      for (const psm of ['11', '6']){            // two page layouts: scattered text, and one block
+        await worker.setParameters({ tessedit_pageseg_mode: psm });
+        const list = platesFrom((await worker.recognize(gray)).data);
+        if (list[0]) reads.push(list[0]);
+      }
+      await worker.setParameters({ tessedit_pageseg_mode: '11' });
+      if (!reads.length) continue;               // nothing plate-like: try the inverted image
+      const a = reads[0], b = reads[1];
+      if (b && a.digits === b.digits) return { digits: a.digits, unsure: a.single && a.digits.length >= 7 };
+      const lead = b && b.h > a.h ? b : a;       // readings differ: vote with a tight third look
+      const tight = await readTight(worker, gray, lead.bbox);
+      const votes = reads.map((r) => r.digits).concat(tight ? [tight] : []);
+      const count = {};
+      votes.forEach((v) => { count[v] = (count[v] || 0) + 1; });
+      const top = Object.keys(count).sort((x, y) => count[y] - count[x])[0];
+      return { digits: top, unsure: count[top] < 2 || (lead.single && top.length >= 7) };
+    }
+    return null;
+  }
+
+  scanBtn.addEventListener('click', () => { if (!scanBtn.disabled) scanInput.click(); });
+  scanInput.addEventListener('change', async () => {
+    const file = scanInput.files && scanInput.files[0];
+    scanInput.value = '';
+    if (!file) return;
+    showMsg('');
+    scanBtn.disabled = true;
+    progressCb = (t) => setScanNote(t, false);
+    setScanNote('מכין את התמונה…', false);
+    try{
+      const found = await runScan(file);
+      if (!found){ setScanNote('לא זוהה מספר. צלם שוב מקרוב וישר, או הקלד ידנית.', true); return; }
+      input.value = found.digits; scanned = true; edited = false;
+      const plateBox = document.querySelector('.plate');
+      plateBox.classList.remove('flash'); void plateBox.offsetWidth; plateBox.classList.add('flash');
+      const unsure = found.unsure;
+      setScanNote('זוהה: ' + formatPlate(found.digits) + '. בדוק שהמספר נכון ולחץ על בדיקה.' + (unsure ? ' הזיהוי לא בטוח, בדוק היטב.' : ''), unsure);
+      vibrate(40);
+    }catch(err){
+      setScanNote('הסריקה לא זמינה כרגע. הקלד את המספר ידנית.', true);
+    }finally{
+      progressCb = null;
+      scanBtn.disabled = false;
+      if (lite) releaseWorker();
+    }
+  });
+  window.addEventListener('pagehide', releaseWorker);
+
+  /* ---------- Check ---------- */
+  async function checkPlate(){
+    const plate = normalizePlate(input.value);
+    if (!plate){ showMsg('הקלד מספר רכב.'); input.focus(); return; }
+    showMsg('');
+    setLoading(true);
+
+    if (DEMO){
+      await new Promise(r => setTimeout(r, 350));
+      setLoading(false);
+      showResult(DEMO_PLATES.indexOf(plate) > -1, plate);
+      return;
+    }
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    try{
+      const src = !scanned ? 'manual' : (edited ? 'scan-edit' : 'scan');
+      const res = await fetch(API_URL + '?plate=' + encodeURIComponent(plate) + '&src=' + src, {method:'GET', signal: ctrl.signal});
+      if (!res.ok) throw new Error('bad response');
+      const data = await res.json();
+      showResult(data.approved === true, plate);
+    }catch(err){
+      showMsg('אין חיבור לשרת. בדוק קליטה ונסה שוב.');
+    }finally{
+      clearTimeout(timer);
+      setLoading(false);
+    }
+  }
+
+  function clearAll(){ input.value = ''; resetScan(); showMsg(''); input.focus(); }
+
+  checkBtn.addEventListener('click', checkPlate);
+  clearBtn.addEventListener('click', clearAll);
+  overlay.addEventListener('click', closeResult);
+  $('nextBtn').addEventListener('click', (e) => { e.stopPropagation(); closeResult(); });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') checkPlate(); });
+  input.addEventListener('input', () => { input.value = normalizePlate(input.value); showMsg(''); if (scanned){ edited = true; setScanNote('', false); } });
+  document.addEventListener('keydown', (e) => {
+    if (overlay.classList.contains('show') && (e.key === 'Escape' || e.key === 'Enter')) closeResult();
+  });
+  window.addEventListener('load', () => input.focus());
+</script>
+</body>
+</html>
