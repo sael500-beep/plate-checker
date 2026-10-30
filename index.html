@@ -14,6 +14,7 @@
     --ok:#12a150; --ok-ink:#ffffff;
     --no:#d92d20; --no-ink:#ffffff;
     --plate:#ffd21f; --plate-ink:#111; --band:#1d4ed8;
+    --al:#4338ca; --al-ink:#ffffff;
     --shadow:0 10px 30px rgba(20,24,28,.14);
   }
   @media (prefers-color-scheme: dark){
@@ -22,6 +23,7 @@
       --ok:#1fcf68; --ok-ink:#04210f;
       --no:#ff4d42; --no-ink:#2a0603;
       --plate:#e8c21c; --band:#2f5fe0;
+      --al:#5548d9;
       --shadow:0 10px 30px rgba(0,0,0,.55);
     }
   }
@@ -30,6 +32,7 @@
     --ok:#1fcf68; --ok-ink:#04210f;
     --no:#ff4d42; --no-ink:#2a0603;
     --plate:#e8c21c; --band:#2f5fe0;
+    --al:#5548d9;
     --shadow:0 10px 30px rgba(0,0,0,.55);
   }
   /* Night-vision mode: red light only, preserves dark adaptation */
@@ -166,6 +169,15 @@
   }
   @keyframes fade{from{opacity:0}to{opacity:1}}
 
+  /* Alert: calm, steady, no gate and no motion. Different colour from approved (green) and not approved (red). */
+  #overlay.al{--res-bg:var(--al);--res-ink:var(--al-ink)}
+  #overlay.al .gate{display:none}
+  #overlay.al .icon{width:72px;height:72px;animation:none!important}
+  #overlay.al .word{font-size:clamp(34px,11vw,52px)}
+  #overlay.al .word-en{font-size:22px;font-weight:700;opacity:1;direction:rtl;max-width:min(92vw,420px);line-height:1.4;margin-top:12px;overflow-wrap:anywhere}
+  .word-en:empty{display:none}
+  :root[data-theme="red"] #overlay.al{background:var(--panel);color:var(--ink);border:8px dashed var(--ink)}
+
   /* Barrier gate: lifts on approval, stays down and shakes on denial */
   .gate{--L:min(58vw,230px,26vh);direction:ltr;position:relative;width:var(--L);height:70px;margin-top:calc(var(--L)*.75);margin-bottom:22px}
   .gate .post{position:absolute;left:0;top:14px;width:30px;height:44px;border-radius:8px;background:currentColor;opacity:.9}
@@ -272,6 +284,7 @@
   // ======================================================
   const DEMO = new URLSearchParams(location.search).get('demo') === '1' || window.__FORCE_DEMO__ === true;
   const DEMO_PLATES = ['21673601'];
+  const DEMO_ALERTS = { '55555555': 'הנחיה לדוגמה: דווח למפקד המשמרת' };   // made-up number, not a real alert
 
   const $ = (id) => document.getElementById(id);
   const input = $('plateInput'), checkBtn = $('checkBtn'), clearBtn = $('clearBtn'),
@@ -334,20 +347,22 @@
   }
   const ICON_OK = '<path d="M20 50 L40 70 L76 28"/>';
   const ICON_NO = '<path d="M26 26 L70 70 M70 26 L26 70"/>';
+  const ICON_AL = '<path d="M48 18 L48 56 M48 76 L48 77"/>';
 
   function vibrate(p){ if (!lite && navigator.vibrate) navigator.vibrate(p); }
   function setLoading(on){ checkBtn.disabled = on; checkBtn.classList.toggle('loading', on); }
   function showMsg(t){ msg.textContent = t || ''; }
 
-  function showResult(approved, plate){
-    $('icon').innerHTML = approved ? ICON_OK : ICON_NO;
-    $('word').textContent = approved ? 'מאושר' : 'לא מאושר';
-    $('wordEn').textContent = approved ? 'APPROVED' : 'NOT APPROVED';
+  function showResult(status, plate, note){
+    const approved = status === 'approved', alert = status === 'alert';
+    $('icon').innerHTML = alert ? ICON_AL : (approved ? ICON_OK : ICON_NO);
+    $('word').textContent = alert ? 'עכב ודווח' : (approved ? 'מאושר' : 'לא מאושר');
+    $('wordEn').textContent = alert ? (note || '') : (approved ? 'APPROVED' : 'NOT APPROVED');
     $('echo').textContent = formatPlate(plate);
     overlay.className = '';
     void overlay.offsetWidth;               // restart CSS animations on repeat checks
-    overlay.className = 'show ' + (approved ? 'ok' : 'no');
-    vibrate(approved ? 70 : [90, 50, 90]);
+    overlay.className = 'show ' + (alert ? 'al' : (approved ? 'ok' : 'no'));
+    vibrate(alert ? 40 : (approved ? 70 : [90, 50, 90]));
     $('nextBtn').focus({preventScroll:true});
   }
   function resetScan(){ scanned = false; edited = false; setScanNote('', false); }
@@ -719,7 +734,8 @@
     if (DEMO){
       await new Promise(r => setTimeout(r, 350));
       setLoading(false);
-      showResult(DEMO_PLATES.indexOf(plate) > -1, plate);
+      if (DEMO_ALERTS.hasOwnProperty(plate)) showResult('alert', plate, DEMO_ALERTS[plate]);
+      else showResult(DEMO_PLATES.indexOf(plate) > -1 ? 'approved' : 'denied', plate);
       return;
     }
 
@@ -730,7 +746,10 @@
       const res = await fetch(API_URL + '?plate=' + encodeURIComponent(plate) + '&src=' + src, {method:'GET', signal: ctrl.signal});
       if (!res.ok) throw new Error('bad response');
       const data = await res.json();
-      showResult(data.approved === true, plate);
+      // newer script answers with status; the older one only with approved
+      const status = (data.status === 'alert' || data.status === 'approved' || data.status === 'denied')
+        ? data.status : (data.approved === true ? 'approved' : 'denied');
+      showResult(status, plate, typeof data.note === 'string' ? data.note : '');
     }catch(err){
       showMsg('אין חיבור לשרת. בדוק קליטה ונסה שוב.');
     }finally{
